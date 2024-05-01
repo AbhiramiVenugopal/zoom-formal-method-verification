@@ -1,0 +1,284 @@
+module zoomfinal
+ 
+with ==, !=, get, set 
+is
+
+------------------------------------------------------------------------
+--  Types
+------------------------------------------------------------------------
+
+-- messages are sent between professors and students 
+type Message 
+	is Message (n: nat) 
+end type
+
+-- status of a meeting. when meeting is scheduled it is set to valid and when cancelled it is set to invalid
+type Status is 
+	Valid, 
+	Invalid
+end type 
+
+-- status of a call can be accepted, declined or waiting for an answer 
+type CallStatus is
+  Accepted,
+  Declined,
+  Waiting
+end type
+
+-- professor will maintain a list of students that have joined the zoom meeting link
+type Students is 
+list of Nat
+with empty, head, tail, member
+end type 
+
+------------------------------------------------------------------------
+--  Channels
+------------------------------------------------------------------------
+
+-- channel for messages between student and professor 
+channel M is
+ (m1: Message) 
+end channel 
+
+-- channel to schedule a zoom meeting 
+channel Schedule is 
+ (meetingID: Nat, status: Status)
+end channel 
+
+-- channel for initiating a direct call 
+channel DirectCall is
+  (callID: Nat)
+end channel
+
+-- channel for responding to a call from the other person
+channel RespondCall is
+  (callID: Nat, status: CallStatus)
+end channel
+
+-- channel to specify a meeting link of a zoom meeting 
+channel MeetingLink is
+	(meetingLink: string)
+end channel
+
+-- SJ stands for STUDENTJOIN, channel to facilitate a student joining a zoom meeting 
+channel SJ is (studentId: Nat) end channel
+
+-- SL stands for STUDENTLEAVE, channel to facilitate a student leaving a zoom meeting
+channel SL is (studentId: Nat) end channel
+
+-- channel for cancelling a zoom meeting
+channel Cancel is 
+	(meetingID: Nat)
+end channel 
+
+------------------------------------------------------------------------
+--  Functions
+------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------
+--  Processes
+------------------------------------------------------------------------
+
+
+process Professor [SCHEDULEMEETING: Schedule, CANCELMEETING : Cancel, SENDLINKMEETING:MeetingLink ,
+                 LEAVEMEETING: SL, JOINMEETING: SJ, PICKUP: none, DC: DirectCall, RC: RespondCall,
+                 DIRECTMESSAGE: M, DIRECTMESSAGEPROF:M] is
+                 
+  var meetingScheduled: bool, newMessage: bool , meetingID: Nat, meetingStatus: Status,
+  callID: Nat, callResponse:CallStatus, gotCall: bool, link:string, listStudents: Students, 
+  cancelMeetingID: Nat, newCall: bool in
+  
+  -- initialization
+  meetingScheduled := false;
+  newMessage := false;
+  newCall := false;
+  meetingID := 0;
+  meetingStatus := Invalid; 
+  callID := 0;
+  gotCall := false;
+  link := "https://zoom.us/j/1234567890";
+  listStudents := {};
+  meetingStatus := Invalid;
+  cancelMeetingID := 0;
+  
+    loop
+      select
+         --schedule a zoom meeting 
+         meetingID := 123;
+         meetingStatus := Valid; --set the meeting status to valid 
+         SCHEDULEMEETING (meetingID, meetingStatus);
+         meetingScheduled := true
+      [] 
+      	 --cancel a zoom meeting 
+         cancelMeetingID := 34;
+         
+         if meetingScheduled and (cancelMeetingID != 0) then
+           meetingStatus := Invalid;
+           CANCELMEETING (cancelMeetingID);
+           listStudents := {}
+         end if
+      [] 
+      	--send the link of a scheduled zoom meeting 
+         if meetingScheduled and (meetingStatus == Valid) then --if meeting has been scheduled and meet's status is set to valid
+           SENDLINKMEETING (link)
+         end if
+      []
+      	--handling a situation that student leaves a zoom meeting 
+        if meetingScheduled and (meetingStatus == Valid) then
+           var lStudentID: Nat in
+		LEAVEMEETING (?lStudentID)
+		-- code to remove student with that "lstudentID" from that "listStudents"
+		-- listStudents := delete_s (studentID)
+	   end var
+         end if
+      []
+      -- handling a situation that a student joins a zoom meeting 
+         if meetingScheduled and (meetingStatus == Valid) then   
+           --when a student joins a meeting, the studenID has to be added to the list of participants (students)
+           var jStudentID: Nat in
+		JOINMEETING (?jStudentID)
+		--listStudents := cons(jStudentID, listStudents) --when i uncomment this line then bcg is not getting created
+	   end var
+         end if
+      []
+         if meetingScheduled then 
+           PICKUP
+         end if
+      []
+         --professor is creating a call id and sending it to the student 
+         callID := 23;
+         DC (callID);
+         newCall := true
+      []
+      	--professor gets to know if call is accepted or declined 
+      	if newCall then
+      	RC (?any Nat, ?any CallStatus)
+        end if 
+      []           
+         
+         --student is messaging the professor
+         --professor is receieving the message here 
+        DIRECTMESSAGE(Message(2)); -- Professor receiving a message from a student
+      	newMessage := true
+         
+      []
+        
+        if newMessage then
+        DIRECTMESSAGEPROF(?any Message); -- Professor sending a message to a student
+        newMessage := false
+     	end if
+        
+      end select
+    end loop
+  end var
+end process
+
+------------------------------------------------------------------------
+
+process Student [SCHEDULEMEETING: Schedule, CANCELMEETING : Cancel, SENDLINKMEETING: MeetingLink,
+                 LEAVEMEETING: SL, JOINMEETING: SJ, PICKUP: none, DC: DirectCall, RC: RespondCall,
+                 DIRECTMESSAGE: M, DIRECTMESSAGEPROF:M] is
+  var hasMessageToSend: bool, receivedMessage: bool, meeting: status, callID: Nat, callResponse: CallStatus, gotCall: bool,
+  studentID : Nat in
+  
+  -- initialization
+  hasMessageToSend := true; -- Assuming the student has a message to send at the start
+  receivedMessage := false;
+  meeting := Invalid; -- Lina: initially not valid
+  callID := 0;
+  gotCall := false;
+  studentID := 0;
+  
+  loop
+    select
+      SCHEDULEMEETING (?any nat, ?meeting) -- Lina: meeting status updated
+    [] 
+      CANCELMEETING (?any nat)
+    [] 
+      if (meeting == Valid) then
+        SENDLINKMEETING (? any string)
+      end if
+    []
+    --LEAVEMEETING
+    --student's ID has to be sent to the professor to be removed from professor's list of participants (students)
+      if (meeting == Valid) then 
+         studentID := 45; --the student ID of the student who wants to leave the meeting 
+         LEAVEMEETING (studentID)
+      end if
+    []
+    --student's ID has to be sent to the professor to be added to professor's list of participants (students)
+      if (meeting == Valid) then    
+        studentID := 45; --the student ID of the student who wants to join the meeting
+        JOINMEETING (studentID)
+      end if
+    [] 
+      PICKUP
+    [] 
+      -- student has received the call id and set the status of gotCall to true
+      DC (?callID);
+      gotCall := true --check with prof lina
+    []
+    	if gotCall and (callID != 0) then
+          -- Decision logic for accepting or declining a call.
+          -- This is simplified and could be based on more complex conditions.
+          -- For illustration, let's accept even call IDs and decline odd ones.
+          if (callID mod 2) = 0 then
+            callResponse := Accepted
+          else
+            callResponse := Declined
+          end if;
+          
+          -- Respond to the call by sending the status.
+          RC (callID, callResponse);
+          gotCall := false -- Reset the flag after handling the call.
+        end if
+    [] 
+      if hasMessageToSend then
+        DIRECTMESSAGEPROF(Message(1)); -- Student sending a message to the professor
+        hasMessageToSend := false -- Reset after sending
+      end if
+    []
+      DIRECTMESSAGE(?any Message); -- Student receiving a message from the professor
+      receivedMessage := true -- Indicate that a message was received
+    end select
+  end loop
+end var
+end process
+
+
+------------------------------------------------------------------------
+
+process Main [SCHEDULEMEETING: Schedule, CANCELMEETING : Cancel, SENDLINKMEETING: MeetingLink,
+                 LEAVEMEETING: SL, JOINMEETING: SJ, PICKUP: none, DC: DirectCall, RC: RespondCall,
+                 DIRECTMESSAGE: M, DIRECTMESSAGEPROF:M] is
+              
+  par
+    -- Lina: all the message that synchromize with the prof
+    SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING,
+    LEAVEMEETING, JOINMEETING, PICKUP, DC, RC, DIRECTMESSAGE, 
+    DIRECTMESSAGEPROF ->
+    
+      -- Lina: two concurrent that synchronize only on 3 events
+      par SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING  in
+         Student [SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING,
+                  LEAVEMEETING, JOINMEETING, PICKUP, DC, RC,
+                  DIRECTMESSAGE, DIRECTMESSAGEPROF]
+      ||
+          Student [SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING,
+                  LEAVEMEETING, JOINMEETING, PICKUP, DC, RC,
+                  DIRECTMESSAGE, DIRECTMESSAGEPROF]
+       end par
+  ||
+    SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING,
+    LEAVEMEETING, JOINMEETING, PICKUP, DC, RC , DIRECTMESSAGE, 
+    DIRECTMESSAGEPROF ->
+      Professor [SCHEDULEMEETING, CANCELMEETING, SENDLINKMEETING,
+                 LEAVEMEETING, JOINMEETING, PICKUP, DC, RC,
+                 DIRECTMESSAGE, DIRECTMESSAGEPROF]
+  end par
+end process
+
+end module
+
+

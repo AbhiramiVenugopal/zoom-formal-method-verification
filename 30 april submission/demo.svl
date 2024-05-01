@@ -1,0 +1,146 @@
+"zoomfinal.bcg" = generation of "zoomfinal.lnt";
+
+property PROPERTY_1
+    "Ensure a meeting cannot be left before it is joined."
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    [ (not {SCHEDULEMEETING ...})* . "LEAVEMEETING" ] false
+    ;
+    expected TRUE ;
+end property
+
+property PROPERTY_2
+    "The model is free of deadlocks. Liveness property."
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    [true*] <true> true;
+    expected TRUE ;
+end property
+
+property PROPERTY_3
+  "There should be a way to cancel a meeting after scheduling it (liveness)"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     <true*. {SCHEDULEMEETING...}.true*.{CANCELMEETING...}> true;
+  expected TRUE;
+end property
+
+property PROPERTY_4
+  "There should be a way to join a meeting after scheduling it (liveness)"
+is
+   "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     <true*. {SCHEDULEMEETING...}.true*.{JOINMEETING...}> true;
+  expected TRUE;
+end property
+
+property PROPERTY_5
+  "After scheduling a meeting it is either joined or cancelled (fairness)"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     [ true* . {SCHEDULEMEETING...} . (not {JOINMEETING...} or {CANCELMEETING...}) ] < true* . {JOINMEETING...} or {CANCELMEETING...} > true;
+  expected TRUE;
+end property
+
+property PROPERTY_6
+  "After initiating a direct call it is either accepted or declines (fairness)"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     [ true* . {DC...} . (not {RC...}) ] < true* . {RC...} > true;
+  expected TRUE;
+end property
+
+property PROPERTY_7
+  "0nce a meeting is successfully scheduled and set to valid status, it is guraranteed that meeting link will eventually be sent to all intended participants (liveness)"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     [true*. {SCHEDULEMEETING...}] <true* . {SENDLINKMEETING...}>true;
+  expected TRUE;
+end property
+
+property PROPERTY_8
+  "There exists at least one action sequence that first initiates and responds to a direct message without scheduling a meeting"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    macro SOME (R) =
+    < (R) > true
+    end_macro
+
+  SOME({DIRECTMESSAGE...}.{DIRECTMESSAGEPROF...}.true*);
+  expected TRUE;
+end property
+
+
+property PROPERTY_9
+  "You can not send the meeting link of a zoom meeting that has not been scheduled yet (Safety property)"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+     [(not({SCHEDULEMEETING...}))*.{SENDLINKMEETING...}] false;
+  expected TRUE;
+end property
+
+property PROPERTY_10
+  "There exists at least one action sequence that starts with scheduling a meeting"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    macro SOME (R) =
+    < (R) > true
+    end_macro
+
+  SOME({SCHEDULEMEETING...}.true*);
+  expected TRUE;
+end property
+
+property PROPERTY_11
+  "There exists no action sequence that starts with leaving a meeting"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    macro NEVER (R) =
+    	[ (R) ] false
+    end_macro
+
+  NEVER({LEAVEMEETING...}.true*);
+  expected TRUE;
+end property
+
+property PROPERTY_12
+  "There exists at least one action sequence that first initiates and responds to a direct call without scheduling a meeting"
+is
+    "zoomfinal.bcg"
+    |= with evaluator4
+    library standard.mcl end_library
+    macro SOME (R) =
+    < (R) > true
+    end_macro
+
+  SOME({DC...}.{RC...}.true*);
+  expected TRUE;
+end property
+
+
+
+
+
+
+
